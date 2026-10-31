@@ -1,39 +1,174 @@
 package com.johnakins.ticketplatform.event;
-import com.johnakins.ticketplatform.ticket.*;
+
+//import com.johnakins.ticketplatform.common.exception.ResourceNotFoundException;
+import com.johnakins.ticketplatform.event.dto.CreateEventRequest;
+import com.johnakins.ticketplatform.event.dto.EventResponse;
+import com.johnakins.ticketplatform.event.dto.UpdateEventRequest;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.UUID;
+
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class EventService {
- private final EventRepository events;
- private final TicketTypeRepository types;
 
- //public EventService(EventRepository events,TicketTypeRepository types){this.events=events;this.types=types;}
- @Transactional public Event create(String title,String description,String venue,LocalDateTime start,LocalDateTime end){
-  if(!end.isAfter(start)) throw new IllegalArgumentException("Event end must be after start");
-  return events.save(new Event(title,description,venue,start,end));
- }
+    private final EventRepository eventRepository;
 
- @Transactional public TicketType addType(UUID eventId,String name,BigDecimal price,int quantity){
-  Event event=events.findById(eventId).orElseThrow(()->new NoSuchElementException("Event not found"));
-  if(price==null||price.signum()<0||quantity<1) throw new IllegalArgumentException("Price must be non-negative and quantity must be positive");
-  TicketType ticketType = new TicketType();
-  ticketType.setEvent(event);
-  ticketType.setName(name);
-  ticketType.setPrice(price);
-  ticketType.setTotalQuantity(quantity);
-  ticketType.setSoldQuantity(0);
-  ticketType.setReservedQuantity(0);
+    // 1. Create event
+    public EventResponse createEvent(CreateEventRequest request) {
 
-  return types.save(ticketType);
- }
+        validateDates(request.startDate(), request.endDate());
 
- @Transactional public Event publish(UUID id){Event e=events.findById(id).orElseThrow(()->new NoSuchElementException("Event not found"));e.publish();return e;}
- @Transactional(readOnly=true) public List<Event> search(String q){return events.findByStatusAndTitleContainingIgnoreCase(EventStatus.PUBLISHED,q==null?"":q);}
- @Transactional(readOnly=true) public Event get(UUID id){return events.findById(id).orElseThrow(()->new NoSuchElementException("Event not found"));}
- @Transactional(readOnly=true) public List<TicketType> types(UUID eventId){return types.findByEventId(eventId);}
+        Event event = new Event();
+
+        event.setTitle(request.title());
+        event.setDescription(request.description());
+        event.setVenue(request.venue());
+        event.setStartDate(request.startDate());
+        event.setEndDate(request.endDate());
+        event.setStatus(EventStatus.DRAFT);
+
+        Event savedEvent = eventRepository.save(event);
+
+        return EventResponse.from(savedEvent);
+    }
+
+    // 2. Get all events
+    @Transactional(readOnly = true)
+    public List<EventResponse> getAllEvents() {
+
+        return eventRepository.findAll()
+                .stream()
+                .map(EventResponse::from)
+                .toList();
+    }
+
+    // 3. Get event by ID
+    @Transactional(readOnly = true)
+    public EventResponse getEventById(UUID eventId) {
+
+        Event event = findEvent(eventId);
+
+        return EventResponse.from(event);
+    }
+
+    // 4. Update event
+    public EventResponse updateEvent(
+            UUID eventId,
+            UpdateEventRequest request
+    ) {
+
+        Event event = findEvent(eventId);
+
+        if (event.getStatus() != EventStatus.DRAFT) {
+            throw new IllegalStateException(
+                    "Only draft events can be updated"
+            );
+        }
+
+        validateDates(request.startDate(), request.endDate());
+
+        event.setTitle(request.title());
+        event.setDescription(request.description());
+        event.setVenue(request.venue());
+        event.setStartDate(request.startDate());
+        event.setEndDate(request.endDate());
+
+        return EventResponse.from(eventRepository.save(event));
+    }
+
+    // 5. Publish event
+    public EventResponse publishEvent(UUID eventId) {
+
+        Event event = findEvent(eventId);
+
+        if (event.getStatus() != EventStatus.DRAFT) {
+            throw new IllegalStateException(
+                    "Only draft events can be published"
+            );
+        }
+
+        if (!event.getStartDate().isAfter(LocalDateTime.now())) {
+            throw new IllegalStateException(
+                    "Event start date must be in the future"
+            );
+        }
+
+        if (!event.getEndDate().isAfter(event.getStartDate())) {
+            throw new IllegalStateException(
+                    "Event end date must be after start date"
+            );
+        }
+
+        event.setStatus(EventStatus.PUBLISHED);
+
+        return EventResponse.from(eventRepository.save(event));
+    }
+
+    // 6. Cancel event
+    public EventResponse cancelEvent(UUID eventId) {
+
+        Event event = findEvent(eventId);
+
+        if (event.getStatus() == EventStatus.CANCELLED) {
+            throw new IllegalStateException(
+                    "Event is already cancelled"
+            );
+        }
+
+        event.setStatus(EventStatus.CANCELLED);
+
+        return EventResponse.from(eventRepository.save(event));
+    }
+
+    // 7. Search published events
+    @Transactional(readOnly = true)
+    public List<EventResponse> searchPublishedEvents(String keyword) {
+
+        List<Event> events;
+
+        if (keyword == null || keyword.isBlank()) {
+            events = eventRepository.findByStatus(
+                    EventStatus.PUBLISHED
+            );
+        } else {
+            events = eventRepository
+                    .findByStatusAndTitleContainingIgnoreCase(
+                            EventStatus.PUBLISHED,
+                            keyword.trim()
+                    );
+        }
+
+        return events.stream()
+                .map(EventResponse::from)
+                .toList();
+    }
+
+    private Event findEvent(UUID eventId) {
+
+        return eventRepository.findById(eventId)
+                .orElseThrow(() ->
+                        new NoSuchElementException(
+                                "Event not found: " + eventId
+                        )
+                );
+    }
+
+    private void validateDates(
+            LocalDateTime startDate,
+            LocalDateTime endDate
+    ) {
+
+        if (!endDate.isAfter(startDate)) {
+            throw new IllegalArgumentException(
+                    "Event end date must be after start date"
+            );
+        }
+    }
 }

@@ -1,14 +1,14 @@
 services:
   postgres:
-    image: postgres:16
+    image: postgres
+    restart: unless-stopped
     container_name: ticket-platform-db
     environment:
-      POSTGRES_DB: ticket_platform
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ticket
+      POSTGRES_USER: john
+      POSTGRES_PASSWORD: john
     ports:
       - "5432:5432"
     volumes:
-      - ticket_platform_data:/var/lib/postgresql/data
-volumes:
-  ticket_platform_data:
+      - "C:/Users/User/Desktop/db-volumes/ticket-db:/var/lib/postgresql"
+
