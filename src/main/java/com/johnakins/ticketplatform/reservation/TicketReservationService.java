@@ -1,15 +1,18 @@
 package com.johnakins.ticketplatform.reservation;
 
+//import com.johnakins.ticketplatform.common.exception.ResourceNotFoundException;
+import com.johnakins.ticketplatform.event.EventStatus;
+import com.johnakins.ticketplatform.ticket.TicketType;
+import com.johnakins.ticketplatform.ticket.TicketTypeRepository;
+import com.johnakins.ticketplatform.reservation.dto.CreateReservationRequest;
+import com.johnakins.ticketplatform.reservation.dto.ReservationResponse;
 
-import com.johnakins.ticketplatform.ticket.*;
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 
@@ -17,176 +20,157 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class TicketReservationService {
 
-    private final TicketTypeRepository types;
-    private final TicketRepository tickets;
-    private final TicketReservationRepository reservations;
+    private final TicketReservationRepository reservationRepository;
+    private final TicketTypeRepository ticketTypeRepository;
 
+    private static final int RESERVATION_MINUTES = 10;
+
+    // 1. Create reservation
     @Transactional
-    public TicketReservation reserve(UUID ticketTypeId, String email, int quantity) {
-        // 1. Lock the ticket type row
-        TicketType ticketType = types
-                .findByIdForUpdate(ticketTypeId)
+    public ReservationResponse createReservation(CreateReservationRequest request) {
+        // Lock the ticket type row.
+        TicketType ticketType = ticketTypeRepository
+                .findByIdForUpdate(request.ticketTypeId())
                 .orElseThrow(() ->
-                        new RuntimeException("Ticket type not found")
+                        new NoSuchElementException(
+                                "Ticket type not found"
+                        )
                 );
+        // Only published events can receive reservations.
+        if (ticketType.getEvent().getStatus()
+                != EventStatus.PUBLISHED) {
 
-        // 2. Check available tickets and reserve
-        ticketType.reserve(quantity);
-
-        // 3. Create reservation record
+            throw new IllegalStateException(
+                    "Tickets are not available for this event"
+            );
+        }
+        // Reserve inventory.
+        ticketType.reserve(request.quantity());
+        // Create reservation.
         TicketReservation reservation = new TicketReservation();
-
-        reservation.setTicketTypeId(ticketTypeId);
-        reservation.setCustomerEmail(email);
-        reservation.setQuantity(quantity);
+        reservation.setTicketType(ticketType);
+        reservation.setCustomerEmail(request.customerEmail());
+        reservation.setQuantity(request.quantity());
+        reservation.setUnitPrice(ticketType.getPrice());
+        reservation.setTotalAmount(
+                ticketType.getPrice()
+                        .multiply(
+                                java.math.BigDecimal.valueOf(
+                                        request.quantity()
+                                )
+                        )
+        );
         reservation.setStatus(ReservationStatus.PENDING);
-        reservation.setCreatedAt(LocalDateTime.now());
         reservation.setExpiresAt(
-                LocalDateTime.now().plusMinutes(10)
+                LocalDateTime.now().plusMinutes(
+                        RESERVATION_MINUTES
+                )
         );
-
-        // 4. Save reservation
-        return reservations.save(reservation);
+        TicketReservation saved = reservationRepository.save(reservation);
+        return ReservationResponse.from(saved);
     }
 
-    @Transactional
-    public List<Ticket> confirmReservation(UUID reservationId) {
-        // 1. Lock the reservation
+    // 2. Get reservation by ID
+    @Transactional(readOnly = true)
+    public ReservationResponse getReservation(UUID reservationId) {
         TicketReservation reservation =
-                reservations.findByIdForUpdate(reservationId)
+                reservationRepository.findById(reservationId)
                         .orElseThrow(() ->
-                                new NoSuchElementException("Reservation not found")
+                                new NoSuchElementException(
+                                        "Reservation not found"
+                                )
                         );
-
-        // 2. Prevent duplicate confirmation
-        if (reservation.getStatus() == ReservationStatus.CONFIRMED) {
-            return tickets.findByReservationId(reservationId);
-        }
-
-        if (reservation.getStatus() != ReservationStatus.PENDING) {
-            throw new IllegalStateException(
-                    "Reservation is not pending"
-            );
-        }
-
-        // 3. Check expiry
-        if (!reservation.getExpiresAt().isAfter(LocalDateTime.now())) {
-            throw new IllegalStateException(
-                    "Reservation has expired"
-            );
-        }
-
-        // 4. Lock ticket inventory
-        TicketType type = types.findByIdForUpdate(
-                reservation.getTicketTypeId()
-        ).orElseThrow(() ->
-                new NoSuchElementException("Ticket type not found")
-        );
-
-        // 5. Move reserved quantity to sold quantity
-        type.confirmReservation(reservation.getQuantity());
-
-        // 6. Generate individual tickets
-        List<Ticket> generatedTickets = new ArrayList<>();
-
-        for (int i = 0; i < reservation.getQuantity(); i++) {
-
-            String number = "TKT-" +
-                    UUID.randomUUID()
-                            .toString()
-                            .substring(0, 12)
-                            .toUpperCase();
-
-            String token = UUID.randomUUID().toString();
-
-            Ticket ticket = new Ticket();
-
-            ticket.setTicketType(type);
-            ticket.setPurchaserEmail(reservation.getCustomerEmail());
-            ticket.setTicketNumber(number);
-            ticket.setQrToken(token);
-            ticket.setStatus(TicketStatus.VALID);
-            ticket.setPurchasedAt(LocalDateTime.now());
-            ticket.setReservation(reservation);
-
-            ticket.setReservation(reservation);
-
-            generatedTickets.add(ticket);
-        }
-
-        // 7. Save tickets
-        List<Ticket> savedTickets = tickets.saveAll(generatedTickets);
-
-        // 8. Update reservation
-        reservation.setStatus(ReservationStatus.CONFIRMED);
-
-        return savedTickets;
+        return ReservationResponse.from(reservation);
     }
 
+    // 3. Confirm reservation after successful payment
+    @Transactional
+    public void confirmReservation(UUID reservationId) {
+        TicketReservation reservation = reservationRepository.findByIdForUpdate(reservationId)
+                        .orElseThrow(() ->
+                                new NoSuchElementException(
+                                        "Reservation not found"
+                                )
+                        );
+        // Idempotency: do not confirm twice.
+        if (reservation.getStatus() == ReservationStatus.CONFIRMED) return;
+        if (reservation.getStatus() != ReservationStatus.PENDING) throw new IllegalStateException("Reservation is not pending");
+        if (!reservation.getExpiresAt().isAfter(LocalDateTime.now())) throw new IllegalStateException("Reservation has expired");
 
+        TicketType ticketType = ticketTypeRepository
+                .findByIdForUpdate(
+                        reservation.getTicketType().getId()
+                )
+                .orElseThrow(() ->
+                        new NoSuchElementException(
+                                "Ticket type not found"
+                        )
+                );
+        // Move quantity from reserved to sold.
+        ticketType.confirmReservation(reservation.getQuantity());
+        reservation.setStatus(ReservationStatus.CONFIRMED);
+        reservation.setConfirmedAt(LocalDateTime.now());
+    }
+
+    // 4. Release reservation after definite payment failure
     @Transactional
     public void releaseReservation(UUID reservationId) {
-
-        // 1. Find and lock the reservation
         TicketReservation reservation =
-                reservations.findByIdForUpdate(reservationId)
+                reservationRepository.findByIdForUpdate(reservationId)
                         .orElseThrow(() ->
-                                new NoSuchElementException("Reservation not found")
+                                new NoSuchElementException(
+                                        "Reservation not found"
+                                )
                         );
 
-        // 2. Prevent releasing an already processed reservation
-        if (reservation.getStatus() != ReservationStatus.PENDING) {
-            return;
-        }
+        // Don't release a confirmed reservation.
+        if (reservation.getStatus() == ReservationStatus.CONFIRMED) throw new IllegalStateException("A confirmed reservation cannot be released");
+        // Repeated release requests are harmless.
+        if (reservation.getStatus() != ReservationStatus.PENDING) return;
 
-        // 3. Lock the ticket type
-        TicketType type = types.findByIdForUpdate(
-                reservation.getTicketTypeId()
-        ).orElseThrow(() ->
-                new NoSuchElementException("Ticket type not found")
-        );
+        TicketType ticketType = ticketTypeRepository
+                .findByIdForUpdate(
+                        reservation.getTicketType().getId()
+                )
+                .orElseThrow(() ->
+                        new NoSuchElementException(
+                                "Ticket type not found"
+                        )
+                );
+        ticketType.releaseReservation(reservation.getQuantity());
 
-        // 4. Return reserved tickets to available inventory
-        type.releaseReservation(reservation.getQuantity());
-
-        // 5. Update reservation status
         reservation.setStatus(ReservationStatus.RELEASED);
+        reservation.setReleasedAt(LocalDateTime.now());
     }
 
-
+    // 5. Expire reservation after timeout
     @Transactional
     public void expireReservation(UUID reservationId) {
-        // 1. Lock the reservation
         TicketReservation reservation =
-                reservations.findByIdForUpdate(reservationId)
+                reservationRepository.findByIdForUpdate(reservationId)
                         .orElseThrow(() ->
-                                new NoSuchElementException("Reservation not found")
+                                new NoSuchElementException(
+                                        "Reservation not found"
+                                )
                         );
 
-        // 2. Check reservation status
-        if (reservation.getStatus() != ReservationStatus.PENDING) {
-            return;
-        }
+        if (reservation.getStatus() != ReservationStatus.PENDING) return;
+        if (reservation.getExpiresAt().isAfter(LocalDateTime.now())) return;
 
-        // 3. Check expiry time again
-        if (reservation.getExpiresAt().isAfter(LocalDateTime.now())) {
-            return;
-        }
+        TicketType ticketType = ticketTypeRepository
+                .findByIdForUpdate(
+                        reservation.getTicketType().getId()
+                )
+                .orElseThrow(() ->
+                        new NoSuchElementException(
+                                "Ticket type not found"
+                        )
+                );
+        ticketType.releaseReservation(reservation.getQuantity());
 
-        // 4. Lock ticket inventory
-        TicketType type = types.findByIdForUpdate(
-                reservation.getTicketTypeId()
-        ).orElseThrow(() ->
-                new NoSuchElementException("Ticket type not found")
-        );
-
-        // 5. Release reserved inventory
-        type.releaseReservation(reservation.getQuantity());
-
-        // 6. Update reservation status
         reservation.setStatus(ReservationStatus.EXPIRED);
+        reservation.setReleasedAt(LocalDateTime.now());
     }
-
 }
 
 

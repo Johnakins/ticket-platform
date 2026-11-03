@@ -10,15 +10,10 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
-import java.math.BigDecimal; import java.time.LocalDateTime;
 import java.util.*;
-import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import java.util.List;
-import java.util.UUID;
+
 
 @RestController
 @RequestMapping("/api/events")
@@ -32,9 +27,7 @@ public class EventController {
     public ResponseEntity<EventResponse> createEvent(
             @Valid @RequestBody CreateEventRequest request
     ) {
-
         EventResponse response = eventService.createEvent(request);
-
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(response);
     }
@@ -42,7 +35,6 @@ public class EventController {
     // GET /api/events
     @GetMapping
     public ResponseEntity<List<EventResponse>> getAllEvents() {
-
         return ResponseEntity.ok(
                 eventService.getAllEvents()
         );
@@ -53,7 +45,6 @@ public class EventController {
     public ResponseEntity<EventResponse> getEventById(
             @PathVariable UUID eventId
     ) {
-
         return ResponseEntity.ok(
                 eventService.getEventById(eventId)
         );
@@ -65,7 +56,6 @@ public class EventController {
             @PathVariable UUID eventId,
             @Valid @RequestBody UpdateEventRequest request
     ) {
-
         return ResponseEntity.ok(
                 eventService.updateEvent(eventId, request)
         );
@@ -76,7 +66,6 @@ public class EventController {
     public ResponseEntity<EventResponse> publishEvent(
             @PathVariable UUID eventId
     ) {
-
         return ResponseEntity.ok(
                 eventService.publishEvent(eventId)
         );
@@ -87,7 +76,6 @@ public class EventController {
     public ResponseEntity<EventResponse> cancelEvent(
             @PathVariable UUID eventId
     ) {
-
         return ResponseEntity.ok(
                 eventService.cancelEvent(eventId)
         );
@@ -98,7 +86,6 @@ public class EventController {
     public ResponseEntity<List<EventResponse>> searchEvents(
             @RequestParam(required = false) String keyword
     ) {
-
         return ResponseEntity.ok(
                 eventService.searchPublishedEvents(keyword)
         );

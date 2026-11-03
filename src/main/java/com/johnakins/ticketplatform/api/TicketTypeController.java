@@ -6,13 +6,10 @@ import com.johnakins.ticketplatform.ticket.dto.TicketTypeResponse;
 import com.johnakins.ticketplatform.ticket.dto.UpdateTicketTypeRequest;
 
 import jakarta.validation.Valid;
-
 import lombok.RequiredArgsConstructor;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 import java.util.UUID;
 
@@ -28,10 +25,8 @@ public class TicketTypeController {
             @PathVariable UUID eventId,
             @Valid @RequestBody CreateTicketTypeRequest request
     ) {
-
         TicketTypeResponse response =
                 ticketTypeService.createTicketType(eventId, request);
-
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(response);
     }
@@ -41,7 +36,6 @@ public class TicketTypeController {
     public ResponseEntity<List<TicketTypeResponse>> getEventTicketTypes(
             @PathVariable UUID eventId
     ) {
-
         return ResponseEntity.ok(
                 ticketTypeService.getEventTicketTypes(eventId)
         );
@@ -52,7 +46,6 @@ public class TicketTypeController {
     public ResponseEntity<TicketTypeResponse> getTicketType(
             @PathVariable UUID ticketTypeId
     ) {
-
         return ResponseEntity.ok(
                 ticketTypeService.getTicketType(ticketTypeId)
         );
@@ -64,7 +57,6 @@ public class TicketTypeController {
             @PathVariable UUID ticketTypeId,
             @Valid @RequestBody UpdateTicketTypeRequest request
     ) {
-
         return ResponseEntity.ok(
                 ticketTypeService.updateTicketType(ticketTypeId, request)
         );

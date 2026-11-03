@@ -29,6 +29,13 @@ public class ReservationExpiryScheduler {
 
         for (UUID reservationId : expiredIds) {
             try {
+//                // Don't expire a reservation that has a payment record.
+//                if (paymentRepository
+//                        .findByReservationId(reservationId)
+//                        .isPresent()) {
+//
+//                    continue;
+//                }
                 reservationService.expireReservation(reservationId);
 
                 log.info(

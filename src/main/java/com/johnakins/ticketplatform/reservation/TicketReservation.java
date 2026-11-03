@@ -1,9 +1,11 @@
 package com.johnakins.ticketplatform.reservation;
 
+import com.johnakins.ticketplatform.ticket.TicketType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -12,24 +14,45 @@ import java.util.UUID;
 @Getter
 @Setter
 public class TicketReservation {
-        @Id
-        @GeneratedValue(strategy = GenerationType.UUID)
-        private UUID id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
-        private UUID ticketTypeId;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "ticket_type_id", nullable = false)
+    private TicketType ticketType;
 
-        private String customerEmail;
+    @Column(nullable = false)
+    private String customerEmail;
 
-        private int quantity;
+    @Column(nullable = false)
+    private int quantity;
 
-        @Enumerated(EnumType.STRING)
-        private ReservationStatus status;
+    // Price snapshot when the customer made the reservation.
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal unitPrice;
 
-        private LocalDateTime expiresAt;
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal totalAmount;
 
-        private LocalDateTime createdAt;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ReservationStatus status;
 
-        // Getters and setters
+    @Column(nullable = false)
+    private LocalDateTime createdAt;
+
+    @Column(nullable = false)
+    private LocalDateTime expiresAt;
+
+    private LocalDateTime confirmedAt;
+
+    private LocalDateTime releasedAt;
+
+    @PrePersist
+    public void onCreate() {
+        createdAt = LocalDateTime.now();
+    }
 
 }
 

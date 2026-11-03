@@ -151,7 +151,6 @@ public class EventService {
     }
 
     private Event findEvent(UUID eventId) {
-
         return eventRepository.findById(eventId)
                 .orElseThrow(() ->
                         new NoSuchElementException(
@@ -164,7 +163,6 @@ public class EventService {
             LocalDateTime startDate,
             LocalDateTime endDate
     ) {
-
         if (!endDate.isAfter(startDate)) {
             throw new IllegalArgumentException(
                     "Event end date must be after start date"
