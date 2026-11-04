@@ -30,4 +30,20 @@ public class Ticket {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reservation_id")
     private TicketReservation reservation;
+
+    public Ticket(
+            TicketType ticketType,
+            TicketReservation reservation,
+            String purchaserEmail,
+            String ticketNumber,
+            String qrToken
+    ) {
+        this.ticketType = ticketType;
+        this.reservation = reservation;
+        this.purchaserEmail = purchaserEmail;
+        this.ticketNumber = ticketNumber;
+        this.qrToken = qrToken;
+        this.status = TicketStatus.VALID;
+        this.purchasedAt = LocalDateTime.now();
+    }
 }

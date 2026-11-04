@@ -1,11 +1,13 @@
 package com.johnakins.ticketplatform.payment;
 
 import com.johnakins.ticketplatform.reservation.TicketReservationService;
+import com.johnakins.ticketplatform.ticket.dto.TicketResponse;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -16,39 +18,43 @@ public class PaymentService {
     private final TicketReservationService reservationService;
 
     @Transactional
-    public Payment simulatePayment(UUID reservationId, MockPaymentOutcome outcome) {
+    public PaymentResponse simulatePayment(MockPaymentRequest request) {
+
         Payment payment = paymentRepository
-                .findByReservationId(reservationId)
-                .orElseGet(() -> createPayment(reservationId));
+                .findByReservationId(request.reservationId())
+                .orElseGet(() -> createPayment(request.reservationId()));
 
-        // Don't process an already completed payment again.
-        if (payment.getStatus() == PaymentStatus.SUCCESS
-                || payment.getStatus() == PaymentStatus.FAILED) {
-            return payment;
-        }
+        List<TicketResponse> tickets = List.of();
 
-        switch (outcome) {
+        if (request.outcome() == MockPaymentOutcome.SUCCESS) {
 
-            case SUCCESS -> {
-                reservationService.confirmReservation(reservationId);
-                payment.setStatus(PaymentStatus.SUCCESS);
-                payment.setFailureReason(null);
-            }
+            tickets = reservationService.confirmReservation(
+                    request.reservationId()
+            );
 
-            case FAILED -> {
-                reservationService.releaseReservation(reservationId);
-                payment.setStatus(PaymentStatus.FAILED);
-                payment.setFailureReason("Mock payment declined");
-            }
+            payment.setStatus(PaymentStatus.SUCCESS);
+            payment.setFailureReason(null);
 
-            case PENDING -> {
-                payment.setStatus(PaymentStatus.PENDING);
-            }
+        } else if (request.outcome() == MockPaymentOutcome.FAILED) {
+
+            reservationService.releaseReservation(
+                    request.reservationId()
+            );
+
+            payment.setStatus(PaymentStatus.FAILED);
+            payment.setFailureReason("Mock payment failed");
+
+        } else if (request.outcome() == MockPaymentOutcome.PENDING) {
+
+            payment.setStatus(PaymentStatus.PENDING);
+            payment.setFailureReason(null);
         }
 
         payment.setUpdatedAt(LocalDateTime.now());
 
-        return paymentRepository.save(payment);
+        Payment savedPayment = paymentRepository.save(payment);
+
+        return PaymentResponse.from(savedPayment, tickets);
     }
 
     private Payment createPayment(UUID reservationId) {
@@ -64,3 +70,4 @@ public class PaymentService {
         return paymentRepository.save(payment);
     }
 }
+

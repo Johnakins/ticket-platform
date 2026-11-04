@@ -3,6 +3,7 @@ import com.johnakins.ticketplatform.event.*;
 import com.johnakins.ticketplatform.reservation.ReservationStatus;
 import com.johnakins.ticketplatform.reservation.TicketReservation;
 import com.johnakins.ticketplatform.reservation.TicketReservationRepository;
+import com.johnakins.ticketplatform.ticket.dto.TicketResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -10,32 +11,55 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.*;
 
-@RequiredArgsConstructor
 @Service
+@RequiredArgsConstructor
 public class TicketService {
- private final TicketTypeRepository types;
- private final TicketRepository tickets;
- private final TicketReservationRepository reservations;
 
-// @Transactional
-// public TicketReservation reserve(UUID typeId,String email,int quantity) {
-////    TicketType type=types.findByIdForUpdate(typeId).orElseThrow(()->new NoSuchElementException("Ticket type not found"));
-////    if(type.getEvent().getStatus()!=EventStatus.PUBLISHED) throw new IllegalStateException("Event is not published");
-////    type.reserve(quantity);
-////
-////    TicketReservation reservation = new TicketReservation();
-////
-////    reservation.setTicketType();
-////    reservation.setCustomerEmail(email);
-////    reservation.setQuantity(quantity);
-////    reservation.setStatus(ReservationStatus.PENDING);
-////    reservation.setCreatedAt(LocalDateTime.now());
-////    reservation.setExpiresAt(LocalDateTime.now().plusMinutes(10));
-////
-////    return reservations.save(reservation);
-//// }
-////
-//// @Transactional(readOnly=true)
-//// public Ticket get(UUID id){return tickets.findById(id).orElseThrow(()->new NoSuchElementException("Ticket not found"));}
-////}
- }
+    private final TicketRepository ticketRepository;
+
+    @Transactional
+    public List<TicketResponse> generateTickets(
+            TicketReservation reservation) {
+
+        // Prevent duplicate ticket generation.
+        List<Ticket> existingTickets =
+                ticketRepository.findByReservationId(reservation.getId());
+
+        if (!existingTickets.isEmpty()) {
+            return existingTickets.stream()
+                    .map(TicketResponse::from)
+                    .toList();
+        }
+
+        List<Ticket> tickets = new ArrayList<>();
+
+        for (int i = 0; i < reservation.getQuantity(); i++) {
+
+            String ticketNumber = generateTicketNumber();
+            String qrToken = UUID.randomUUID().toString();
+
+            Ticket ticket = new Ticket(
+                    reservation.getTicketType(),
+                    reservation,
+                    reservation.getCustomerEmail(),
+                    ticketNumber,
+                    qrToken
+            );
+
+            tickets.add(ticket);
+        }
+
+        List<Ticket> savedTickets = ticketRepository.saveAll(tickets);
+
+        return savedTickets.stream()
+                .map(TicketResponse::from)
+                .toList();
+    }
+
+    private String generateTicketNumber() {
+        return "TKT-" + UUID.randomUUID()
+                .toString()
+                .substring(0, 8)
+                .toUpperCase();
+    }
+}

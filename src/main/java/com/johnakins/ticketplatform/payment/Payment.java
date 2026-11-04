@@ -1,11 +1,13 @@
 package com.johnakins.ticketplatform.payment;
 
+import com.johnakins.ticketplatform.ticket.dto.TicketResponse;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Entity

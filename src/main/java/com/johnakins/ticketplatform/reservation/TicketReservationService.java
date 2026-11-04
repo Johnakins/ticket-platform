@@ -2,17 +2,20 @@ package com.johnakins.ticketplatform.reservation;
 
 //import com.johnakins.ticketplatform.common.exception.ResourceNotFoundException;
 import com.johnakins.ticketplatform.event.EventStatus;
+import com.johnakins.ticketplatform.ticket.TicketService;
 import com.johnakins.ticketplatform.ticket.TicketType;
 import com.johnakins.ticketplatform.ticket.TicketTypeRepository;
 import com.johnakins.ticketplatform.reservation.dto.CreateReservationRequest;
 import com.johnakins.ticketplatform.reservation.dto.ReservationResponse;
 
+import com.johnakins.ticketplatform.ticket.dto.TicketResponse;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 
@@ -22,6 +25,7 @@ public class TicketReservationService {
 
     private final TicketReservationRepository reservationRepository;
     private final TicketTypeRepository ticketTypeRepository;
+    private final TicketService ticketService;
 
     private static final int RESERVATION_MINUTES = 10;
 
@@ -85,7 +89,7 @@ public class TicketReservationService {
 
     // 3. Confirm reservation after successful payment
     @Transactional
-    public void confirmReservation(UUID reservationId) {
+    public List<TicketResponse> confirmReservation(UUID reservationId) {
         TicketReservation reservation = reservationRepository.findByIdForUpdate(reservationId)
                         .orElseThrow(() ->
                                 new NoSuchElementException(
@@ -93,7 +97,9 @@ public class TicketReservationService {
                                 )
                         );
         // Idempotency: do not confirm twice.
-        if (reservation.getStatus() == ReservationStatus.CONFIRMED) return;
+        if (reservation.getStatus() == ReservationStatus.CONFIRMED) {
+            return ticketService.generateTickets(reservation);
+        }
         if (reservation.getStatus() != ReservationStatus.PENDING) throw new IllegalStateException("Reservation is not pending");
         if (!reservation.getExpiresAt().isAfter(LocalDateTime.now())) throw new IllegalStateException("Reservation has expired");
 
@@ -110,6 +116,8 @@ public class TicketReservationService {
         ticketType.confirmReservation(reservation.getQuantity());
         reservation.setStatus(ReservationStatus.CONFIRMED);
         reservation.setConfirmedAt(LocalDateTime.now());
+
+        return ticketService.generateTickets(reservation);
     }
 
     // 4. Release reservation after definite payment failure
