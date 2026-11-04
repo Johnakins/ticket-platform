@@ -1,83 +1,83 @@
-# Ticket Platform API
+# Event Ticketing Platform
 
-A Java 21 / Spring Boot modular-monolith starter for event publishing, ticket purchasing, QR generation and entrance verification.
+A Java Spring Boot ticketing platform for discovering events, reserving tickets, making mock payments, and verifying tickets at the event entrance.
 
-## Included
-- Event creation, publication and public search
-- Regular/VIP ticket types with quantity and derived AVAILABLE/SOLD_OUT status
-- Ticket purchase with unique ticket number and QR token
-- QR PNG returned as Base64 in the ticket response
-- Verification by QR token or ticket number; first valid scan marks the ticket USED
-- PostgreSQL via Docker Compose
+## Features
 
-## Intentionally not included yet
-Authentication/authorization, real payment gateway, email/SMS notifications, Kafka, and special last-ticket locking.
+- Create, update, publish, and search events
+- Create ticket types such as Regular and VIP
+- Reserve tickets and manage ticket availability
+- Simulate payment success or failure
+- Generate tickets with unique ticket numbers and QR tokens
+- Verify tickets and prevent a ticket from being used more than once
+- Use database transactions and pessimistic locking to help prevent overselling and duplicate scans
 
-**Important:** quantity is validated in the service, but this starter does not implement pessimistic/optimistic locking or atomic inventory reservation. Concurrent purchases can oversell. Add database-level concurrency control before production use. Admin/staff routes are currently public and must be secured before deployment.
+## Tech Stack
 
-## Run
-Requirements: JDK 21, Maven 3.9+, Docker.
+- Java 21
+- Spring Boot
+- Spring Data JPA / Hibernate
+- PostgreSQL
+- Maven
 
-```bash
-docker compose up -d
-mvn spring-boot:run
-```
-API listens on `http://localhost:8081`.
+## How It Works
 
-## API examples
+1. A customer selects an event and ticket type.
+2. The customer reserves tickets.
+3. A mock payment is processed.
+4. After successful payment, tickets are generated.
+5. Each ticket receives a unique ticket number and QR token.
+6. At the event entrance, staff scan the QR code and the backend verifies the token.
 
-Create event:
-```http
-POST /api/admin/events
-Content-Type: application/json
+The QR token is stored in the database. The frontend QR-code image and camera scanning functionality are planned.
 
-{
-  "title": "Lagos Tech Conference",
-  "description": "Technology and product conference",
-  "venue": "Lagos",
-  "startDate": "2026-12-10T09:00:00",
-  "endDate": "2026-12-10T17:00:00"
-}
-```
+## Getting Started
 
-Add a ticket type (replace EVENT_ID):
-```http
-POST /api/admin/events/EVENT_ID/ticket-types
-Content-Type: application/json
+### Prerequisites
 
-{"name":"VIP","price":25000,"totalQuantity":100}
-```
+- Java 21
+- Maven
+- PostgreSQL
 
-Publish:
-```http
-PATCH /api/admin/events/EVENT_ID/publish
-```
+### Setup
 
-Search:
-```http
-GET /api/events?search=tech
-```
+1. Clone the repository:
 
-Purchase:
-```http
-POST /api/tickets/purchase
-Content-Type: application/json
+   ```bash
+   git clone https://github.com/Johnakins/ticketplatform.git
+   cd ticketplatform
+   ```
 
-{"ticketTypeId":"TICKET_TYPE_ID","email":"buyer@example.com"}
-```
+2. Create a PostgreSQL database:
 
-Verify using returned `qrToken` or `ticketNumber`:
-```http
-POST /api/tickets/verify
-Content-Type: application/json
+   ```sql
+   CREATE DATABASE ticketplatform;
+   ```
 
-{"value":"QR_TOKEN_OR_TICKET_NUMBER","staffReference":"gate-1"}
-```
+3. Configure your database connection in `src/main/resources/application.properties`:
 
-## Package layout
-- `event`: event lifecycle and ticket-type setup
-- `ticket`: purchase and issued-ticket lifecycle
-- `verification`: QR generation and entrance validation
-- `api`: REST controllers and API exception mapping
+   ```properties
+   spring.datasource.url=jdbc:postgresql://localhost:5432/ticketplatform
+   spring.datasource.username=YOUR_DB_USERNAME
+   spring.datasource.password=YOUR_DB_PASSWORD
+   ```
 
-This is a backend project. A separate React/Vite frontend can be added on top of these endpoints.
+4. Run the application:
+
+   ```bash
+   ./mvnw spring-boot:run
+   ```
+
+   On Windows:
+
+   ```bash
+   mvnw.cmd spring-boot:run
+   ```
+
+## Project Status
+
+Backend development is in progress. Frontend QR-code generation and scanning, authentication, and real payment integration are planned.
+
+## Author
+
+John Akinola — [GitHub](https://github.com/Johnakins)
