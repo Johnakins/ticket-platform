@@ -3,7 +3,8 @@ server:
 
 spring:
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://host.docker.internal:5432/ticket}
+#    url: ${DATABASE_URL:jdbc:postgresql://host.docker.internal:5432/ticket}
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:ticket}
     username: ${DB_USERNAME:john}
     password: ${DB_PASSWORD:john}
 
