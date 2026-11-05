@@ -1,10 +1,12 @@
 server:
-  port: 8081
+  port: ${PORT:8081}
+
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/ticket
-    username: john
-    password: john
+    url: ${DATABASE_URL:jdbc:postgresql://host.docker.internal:5432/ticket}
+    username: ${DB_USERNAME:john}
+    password: ${DB_PASSWORD:john}
+
   jpa:
     hibernate:
       ddl-auto: update
@@ -12,6 +14,7 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
   jackson:
     serialization:
       fail-on-empty-beans: false
