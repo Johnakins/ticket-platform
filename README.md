@@ -25,7 +25,7 @@ A Java Spring Boot ticketing platform for discovering events, reserving tickets,
 1. A customer selects an event and ticket type.
 2. The customer reserves tickets.
 3. A mock payment is processed.
-4. After successful payment, tickets are generated.
+4. After successful payment, tickets are generated. (Else, release reservations on payment failure and timeout).
 5. Each ticket receives a unique ticket number and QR token.
 6. At the event entrance, staff scan the QR code and the backend verifies the token.
 
@@ -76,7 +76,7 @@ The QR token is stored in the database. The frontend QR-code image and camera sc
 
 ## Project Status
 
-Backend development is in progress. Frontend QR-code generation and scanning, authentication, and real payment integration are planned.
+Backend development is in progress. Frontend QR-code generation and scanning, authentication, real payment integration and notifications are planned.
 
 ## Author
 
