@@ -31,6 +31,9 @@ public class Ticket {
     @JoinColumn(name = "reservation_id")
     private TicketReservation reservation;
 
+    protected Ticket() {
+    }
+
     public Ticket(
             TicketType ticketType,
             TicketReservation reservation,
